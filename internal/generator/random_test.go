@@ -26,6 +26,7 @@ func TestRandomUserIsFromList(t *testing.T) {
 }
 
 func TestRandomPortInRange(t *testing.T) {
+
 	for range 100 {
 		p := RandomPort()
 		if p < 1024 || p >= 65535 {
@@ -33,6 +34,7 @@ func TestRandomPortInRange(t *testing.T) {
 		}
 	}
 }
+
 
 func TestRandomStatusCodeIsKnown(t *testing.T) {
 	known := []int{200, 201, 301, 302, 400, 401, 403, 404, 500, 502, 503}

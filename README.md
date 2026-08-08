@@ -1,6 +1,6 @@
 # EchoStrike
 
-[![CI](https://github.com/jomboi8/echostrike/actions/workflows/ci.yml/badge.svg)](https://github.com/jomboi8/echostrike/actions/workflows/ci.yml)
+[![CircleCI](https://dl.circleci.com/status-badge/img/gh/jomboi8/EchoStrike/tree/main.svg?style=svg)](https://dl.circleci.com/status-badge/redirect/gh/jomboi8/EchoStrike/tree/main)
 
 > **Syslog Attack Simulation & Traffic Generation**
 
@@ -127,7 +127,7 @@ go vet ./...
 go test ./... -race -cover
 ```
 
-All of the above run on every push/PR via [GitHub Actions](.github/workflows/ci.yml).
+All of the above run on every push/PR via [CircleCI](.circleci/config.yml). A GitHub Actions equivalent also ships in [`.github/workflows/ci.yml`](.github/workflows/ci.yml) for when hosted-runner billing is available.
 
 ## Contributing
 
