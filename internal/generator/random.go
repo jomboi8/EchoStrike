@@ -3,7 +3,6 @@ package generator
 import (
 	"fmt"
 	"math/rand"
-	"time"
 )
 
 var (
@@ -11,10 +10,6 @@ var (
 	actions   = []string{"login", "logout", "failed", "accepted", "error", "timeout"}
 	paths     = []string{"/index.html", "/api/v1/login", "/admin", "/dashboard", "/config", "/etc/passwd"}
 )
-
-func init() {
-	rand.Seed(time.Now().UnixNano())
-}
 
 // RandomIP generates a random IPv4 address
 func RandomIP() string {

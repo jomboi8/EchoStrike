@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"echostrike/internal/sender"
@@ -27,6 +28,20 @@ var replayCmd = &cobra.Command{
 		}
 		if protocol == "tls" {
 			proto = sender.TLS
+		}
+
+		// Parse facility/severity once, up front: every replayed line shares
+		// the same values, and a bad flag should fail fast rather than
+		// silently falling back to the zero value on every line.
+		fac, err := syslog.ParseFacility(strings.ToLower(facility))
+		if err != nil {
+			fmt.Printf("Error parsing facility: %v\n", err)
+			os.Exit(1)
+		}
+		sev, err := syslog.ParseSeverity(strings.ToLower(severity))
+		if err != nil {
+			fmt.Printf("Error parsing severity: %v\n", err)
+			os.Exit(1)
 		}
 
 		s, err := sender.NewSender(proto, host, port)
@@ -66,13 +81,13 @@ var replayCmd = &cobra.Command{
 
 			msg := syslog.NewMessage(line)
 			msg.AppName = tag
-			// Use the parsed facility/severity from flags
-			f, _ := syslog.ParseFacility(facility)
-			msg.Facility = f
-			sev, _ := syslog.ParseSeverity(severity)
+			msg.Facility = fac
 			msg.Severity = sev
 
-			s.Send(msg.String() + "\n")
+			if err := s.Send(msg.String() + "\n"); err != nil {
+				fmt.Printf("Error sending line %d: %v\n", count+1, err)
+				continue
+			}
 			count++
 		}
 

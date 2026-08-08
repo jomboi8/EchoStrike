@@ -1,0 +1,5 @@
+/echostrike
+/echostrike.exe
+/dist/
+*.test
+*.out

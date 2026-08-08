@@ -1,12 +1,17 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"os"
+	"os/signal"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"echostrike/internal/generator"
+	"echostrike/internal/ratelimiter"
 	"echostrike/internal/sender"
 	"echostrike/pkg/syslog"
 
@@ -17,13 +22,16 @@ var (
 	rate         int
 	duration     time.Duration
 	templateName string
+	workerCount  int
 )
 
 var generateCmd = &cobra.Command{
 	Use:   "generate",
 	Short: "Generate high-volume syslog traffic from templates",
 	Long: `Generate realistic syslog traffic using built-in templates.
-Support rate limiting and duration control.`,
+Sends are fanned out across a bounded worker pool, each with its own
+long-lived connection, and throttled by a shared rate limiter so the
+aggregate send rate matches --rate regardless of worker count.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		// Validate protocol
 		var proto sender.Protocol
@@ -39,62 +47,100 @@ Support rate limiting and duration control.`,
 			os.Exit(1)
 		}
 
-		// Initialize Generator
-		gen := generator.New()
-
-		// Initialize Sender
-		s, err := sender.NewSender(proto, host, port)
+		// Parse facility/severity once, up front. These are shared by every
+		// worker for the life of the run, so a bad flag should fail fast
+		// instead of silently degrading each generated message.
+		fac, err := syslog.ParseFacility(strings.ToLower(facility))
 		if err != nil {
-			fmt.Printf("Error connecting to target: %v\n", err)
+			fmt.Printf("Error parsing facility: %v\n", err)
 			os.Exit(1)
 		}
-		defer s.Close()
-
-		fmt.Printf("Starting generation: Template=%s Target=%s:%d Rate=%d/s Duration=%s\n",
-			templateName, host, port, rate, duration)
-
-		// Rate Limiter
-		ticker := time.NewTicker(time.Second / time.Duration(rate))
-		defer ticker.Stop()
-
-		timeout := time.After(duration)
-		count := 0
-
-		for {
-			select {
-			case <-timeout:
-				fmt.Printf("\nCompleted. Sent %d messages.\n", count)
-				return
-			case <-ticker.C:
-				// Generate log
-				logMsg, err := gen.Generate(templateName)
-				if err != nil {
-					fmt.Printf("Error generating log: %v\n", err)
-					os.Exit(1)
-				}
-
-				// Create syslog message
-				msg := syslog.NewMessage(logMsg)
-				msg.AppName = tag
-
-				// Set Format
-				if strings.ToLower(format) == "rfc5424" {
-					msg.Format = syslog.RFC5424
-				}
-
-				// Set Facility/Severity (Reuse global flags)
-				f, _ := syslog.ParseFacility(strings.ToLower(facility))
-				msg.Facility = f
-				sev, _ := syslog.ParseSeverity(strings.ToLower(severity))
-				msg.Severity = sev
-
-				// Send
-				if err := s.Send(msg.String() + "\n"); err != nil {
-					fmt.Printf("Error sending: %v\n", err)
-				}
-				count++
-			}
+		sev, err := syslog.ParseSeverity(strings.ToLower(severity))
+		if err != nil {
+			fmt.Printf("Error parsing severity: %v\n", err)
+			os.Exit(1)
 		}
+		msgFormat := syslog.RFC3164
+		if strings.ToLower(format) == "rfc5424" {
+			msgFormat = syslog.RFC5424
+		}
+
+		// Initialize generator and validate the template once, up front,
+		// rather than discovering a typo mid-run in every worker.
+		gen := generator.New()
+		if _, err := gen.Generate(templateName); err != nil {
+			fmt.Printf("Error: %v\n", err)
+			os.Exit(1)
+		}
+
+		workers := workerCount
+		if workers <= 0 {
+			workers = max(min(rate, 32), 1)
+		}
+
+		fmt.Printf("Starting generation: Template=%s Target=%s:%d Rate=%d/s Duration=%s Workers=%d\n",
+			templateName, host, port, rate, duration, workers)
+
+		// Cancel on either the configured duration or Ctrl+C, whichever
+		// happens first, so a long run can be stopped cleanly.
+		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+		defer stop()
+		ctx, cancel := context.WithTimeout(ctx, duration)
+		defer cancel()
+
+		limiter := ratelimiter.New(rate)
+		defer limiter.Stop()
+
+		var sent atomic.Int64
+		var failed atomic.Int64
+
+		var wg sync.WaitGroup
+		for range workers {
+			s, err := sender.NewSender(proto, host, port)
+			if err != nil {
+				fmt.Printf("Error creating sender: %v\n", err)
+				os.Exit(1)
+			}
+
+			wg.Add(1)
+			go func(s *sender.Sender) {
+				defer wg.Done()
+				defer s.Close()
+
+				for {
+					if err := limiter.Wait(ctx); err != nil {
+						// Context cancelled (duration elapsed or Ctrl+C).
+						return
+					}
+
+					logMsg, err := gen.Generate(templateName)
+					if err != nil {
+						failed.Add(1)
+						continue
+					}
+
+					msg := syslog.NewMessage(logMsg)
+					msg.AppName = tag
+					msg.Format = msgFormat
+					msg.Facility = fac
+					msg.Severity = sev
+
+					if err := s.Send(msg.String() + "\n"); err != nil {
+						failed.Add(1)
+						continue
+					}
+					sent.Add(1)
+				}
+			}(s)
+		}
+
+		wg.Wait()
+
+		fmt.Printf("\nCompleted. Sent %d messages", sent.Load())
+		if n := failed.Load(); n > 0 {
+			fmt.Printf(" (%d failed)", n)
+		}
+		fmt.Println(".")
 	},
 }
 
@@ -105,8 +151,9 @@ func init() {
 	generateCmd.Flags().IntVar(&port, "port", 514, "Target Port")
 	generateCmd.Flags().StringVar(&protocol, "proto", "udp", "Protocol (tcp, udp, tls)")
 	generateCmd.Flags().StringVarP(&templateName, "template", "T", "ssh-failed", "Log template name")
-	generateCmd.Flags().IntVarP(&rate, "rate", "r", 1, "Logs per second")
+	generateCmd.Flags().IntVarP(&rate, "rate", "r", 1, "Aggregate logs per second across all workers")
 	generateCmd.Flags().DurationVarP(&duration, "duration", "d", 10*time.Second, "Duration to run")
+	generateCmd.Flags().IntVarP(&workerCount, "workers", "w", 0, "Concurrent sender workers (0 = auto, min(rate, 32))")
 
 	generateCmd.Flags().StringVarP(&tag, "tag", "t", "echostrike", "Syslog tag/app-name")
 	generateCmd.Flags().StringVar(&format, "format", "rfc3164", "Syslog format")

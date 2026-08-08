@@ -1,5 +1,5 @@
 # Build Stage
-FROM golang:1.21-alpine AS builder
+FROM golang:1.25-alpine AS builder
 
 WORKDIR /app
 COPY go.mod go.sum ./
@@ -14,5 +14,4 @@ FROM alpine:latest
 WORKDIR /root/
 COPY --from=builder /app/echostrike .
 
-# Expose nothing by default (it's a client), but good practice to document
 ENTRYPOINT ["./echostrike"]

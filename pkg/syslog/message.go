@@ -9,27 +9,32 @@ import (
 // Priority maps to syslog facility * 8 + severity
 type Priority int
 
+// Facility codes per RFC 3164 §4.1.1 / glibc syslog.h. Values 12-15 are
+// reserved (NTP, audit, alert, clock daemon) and deliberately skipped, so
+// these are spelled out explicitly rather than left to an auto-incrementing
+// iota — an iota sequence here previously drifted LOCAL0-LOCAL7 onto the
+// reserved range instead of the correct 16-23.
 const (
-	LOG_KERN Priority = iota << 3
-	LOG_USER
-	LOG_MAIL
-	LOG_DAEMON
-	LOG_AUTH
-	LOG_SYSLOG
-	LOG_LPR
-	LOG_NEWS
-	LOG_UUCP
-	LOG_CRON
-	LOG_AUTHPRIV
-	LOG_FTP
-	LOG_LOCAL0
-	LOG_LOCAL1
-	LOG_LOCAL2
-	LOG_LOCAL3
-	LOG_LOCAL4
-	LOG_LOCAL5
-	LOG_LOCAL6
-	LOG_LOCAL7
+	LOG_KERN     Priority = 0 << 3
+	LOG_USER     Priority = 1 << 3
+	LOG_MAIL     Priority = 2 << 3
+	LOG_DAEMON   Priority = 3 << 3
+	LOG_AUTH     Priority = 4 << 3
+	LOG_SYSLOG   Priority = 5 << 3
+	LOG_LPR      Priority = 6 << 3
+	LOG_NEWS     Priority = 7 << 3
+	LOG_UUCP     Priority = 8 << 3
+	LOG_CRON     Priority = 9 << 3
+	LOG_AUTHPRIV Priority = 10 << 3
+	LOG_FTP      Priority = 11 << 3
+	LOG_LOCAL0   Priority = 16 << 3
+	LOG_LOCAL1   Priority = 17 << 3
+	LOG_LOCAL2   Priority = 18 << 3
+	LOG_LOCAL3   Priority = 19 << 3
+	LOG_LOCAL4   Priority = 20 << 3
+	LOG_LOCAL5   Priority = 21 << 3
+	LOG_LOCAL6   Priority = 22 << 3
+	LOG_LOCAL7   Priority = 23 << 3
 )
 
 const (
