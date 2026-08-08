@@ -54,11 +54,6 @@ func (g *Generator) Register(name, tmplString string) {
 func (g *Generator) Generate(templateName string) (string, error) {
 	tmpl, ok := g.templates[templateName]
 	if !ok {
-		// If no template matches, return name (used for raw message generation loops) or error
-		// For now, let's treat unknown template as a raw string if it doesn't exist?
-		// Actually, let's return raw string if not found, to support ad-hoc loops?
-		// No, usually strict is better. But user might want "echo test" loop.
-		// Let's assume strict for now.
 		return "", getTemplateError(templateName)
 	}
 
