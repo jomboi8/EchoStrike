@@ -30,7 +30,7 @@ var generateCmd = &cobra.Command{
 	Short: "Generate high-volume syslog traffic from templates",
 	Long: `Generate realistic syslog traffic using built-in templates.
 Sends are fanned out across a bounded worker pool, each with its own
-long-lived connection, and throttled by a shared rate limiter so the
+long-lived connection and throttled by a shared rate limiter so the
 aggregate send rate matches --rate regardless of worker count.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		// Validate protocol
@@ -47,9 +47,6 @@ aggregate send rate matches --rate regardless of worker count.`,
 			os.Exit(1)
 		}
 
-		// Parse facility/severity once, up front. These are shared by every
-		// worker for the life of the run, so a bad flag should fail fast
-		// instead of silently degrading each generated message.
 		fac, err := syslog.ParseFacility(strings.ToLower(facility))
 		if err != nil {
 			fmt.Printf("Error parsing facility: %v\n", err)
@@ -65,8 +62,6 @@ aggregate send rate matches --rate regardless of worker count.`,
 			msgFormat = syslog.RFC5424
 		}
 
-		// Initialize generator and validate the template once, up front,
-		// rather than discovering a typo mid-run in every worker.
 		gen := generator.New()
 		if _, err := gen.Generate(templateName); err != nil {
 			fmt.Printf("Error: %v\n", err)
@@ -81,8 +76,6 @@ aggregate send rate matches --rate regardless of worker count.`,
 		fmt.Printf("Starting generation: Template=%s Target=%s:%d Rate=%d/s Duration=%s Workers=%d\n",
 			templateName, host, port, rate, duration, workers)
 
-		// Cancel on either the configured duration or Ctrl+C, whichever
-		// happens first, so a long run can be stopped cleanly.
 		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 		defer stop()
 		ctx, cancel := context.WithTimeout(ctx, duration)

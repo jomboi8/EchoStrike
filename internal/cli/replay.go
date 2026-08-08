@@ -30,9 +30,6 @@ var replayCmd = &cobra.Command{
 			proto = sender.TLS
 		}
 
-		// Parse facility/severity once, up front: every replayed line shares
-		// the same values, and a bad flag should fail fast rather than
-		// silently falling back to the zero value on every line.
 		fac, err := syslog.ParseFacility(strings.ToLower(facility))
 		if err != nil {
 			fmt.Printf("Error parsing facility: %v\n", err)
@@ -65,19 +62,10 @@ var replayCmd = &cobra.Command{
 		for scanner.Scan() {
 			line := scanner.Text()
 
-			// If preserve timing is requested, we would ideally parse the timestamp diff.
-			// For this MVP, we will just add a small delay or use rate limiting if combined.
-			// The user requirement said "Replay logs exactly as recorded" which is hard without parsing.
-			// We will just send them as fast as possible or with a fixed delay for now if no "rate" is handled here.
-			// Let's just add a tiny delay to prevent overwhelming if it's a huge file.
 			if preserveTiming {
 				time.Sleep(10 * time.Millisecond) // Mock "timing"
 			}
 
-			// Wrap in syslog message or send raw?
-			// Usually replay implies sending the line AS IS if it's already formatted,
-			// OR wrapping it. Let's assume the file contains raw content.
-			// If the user provided a tag, we wrap it.
 
 			msg := syslog.NewMessage(line)
 			msg.AppName = tag
