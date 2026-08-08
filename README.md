@@ -1,6 +1,6 @@
 # EchoStrike
 
-[![CircleCI](https://dl.circleci.com/status-badge/img/gh/jomboi8/EchoStrike/tree/main.svg?style=svg)](https://dl.circleci.com/status-badge/redirect/gh/jomboi8/EchoStrike/tree/main)
+[![CircleCI](https://dl.circleci.com/status-badge/img/circleci/3bh1VHXW7Jnh7tss7AKSLR/4057bbec-2b94-4117-9db6-3a85206674ea/tree/main.svg?style=svg)](https://dl.circleci.com/status-badge/redirect/circleci/3bh1VHXW7Jnh7tss7AKSLR/4057bbec-2b94-4117-9db6-3a85206674ea/tree/main)
 
 > **Syslog Attack Simulation & Traffic Generation**
 
@@ -111,6 +111,47 @@ docker run --rm echostrike simulate --type brute-force --host 192.168.1.50
 ## Architecture
 
 EchoStrike is built with a modular architecture to support concurrent traffic generation and extensibility:
+
+```mermaid
+flowchart LR
+    CLI["internal/cli\nsend · generate · preview · replay · simulate"]
+    Generator["internal/generator\ntemplates + randomized data"]
+    Formatter["pkg/syslog\nRFC 3164 / 5424 formatter"]
+    Sender["internal/sender\nUDP / TCP / TLS transport"]
+    Target[("syslog receiver / SIEM")]
+
+    CLI -->|generate, preview| Generator
+    CLI -->|send, replay, simulate| Formatter
+    Generator --> Formatter
+    Formatter --> Sender
+    Sender --> Target
+```
+
+### Concurrent `generate` pipeline
+
+`generate` is the one command where throughput matters, so it's the one built around a bounded worker pool instead of a single loop: each worker owns a persistent connection for its lifetime, a shared token-bucket limiter caps the *aggregate* send rate across every worker, and a single `context.Context` cancels the whole pool cleanly on `--duration` timeout or Ctrl+C.
+
+```mermaid
+flowchart TB
+    RateFlag["--rate\n(aggregate msgs/sec)"] --> Limiter["internal/ratelimiter\ntoken bucket, 1s burst"]
+    Ctx["context.Context\n--duration timeout or Ctrl+C"]
+
+    subgraph Pool["bounded worker pool  (--workers)"]
+        direction LR
+        W1["worker\nown connection"]
+        W2["worker\nown connection"]
+        W3["worker\n..."]
+    end
+
+    Limiter -. token .-> W1
+    Limiter -. token .-> W2
+    Limiter -. token .-> W3
+    Ctx -. cancel .-> W1
+    Ctx -. cancel .-> W2
+    Ctx -. cancel .-> W3
+
+    W1 & W2 & W3 --> Target[("syslog receiver")]
+```
 
 - **`cmd/echostrike`**: The CLI entry point, built with `Cobra` for robust flag handling.
 - **`internal/cli`**: Command definitions (`send`, `generate`, `preview`, `replay`, `simulate`).
