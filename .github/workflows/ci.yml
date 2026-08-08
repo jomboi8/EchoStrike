@@ -1,9 +1,11 @@
 name: CI
 
+# Manual trigger only: this account currently has a GitHub Actions billing
+# lock, so hosted runners can't be provisioned on push. CI runs via CircleCI
+# instead (.circleci/config.yml) in the meantime. Once billing is resolved,
+# add `push`/`pull_request` triggers back here.
 on:
-  push:
-    branches: [main]
-  pull_request:
+  workflow_dispatch:
 
 jobs:
   build-test:

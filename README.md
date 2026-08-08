@@ -127,7 +127,7 @@ go vet ./...
 go test ./... -race -cover
 ```
 
-All of the above run on every push/PR via [CircleCI](.circleci/config.yml). A GitHub Actions equivalent also ships in [`.github/workflows/ci.yml`](.github/workflows/ci.yml) for when hosted-runner billing is available.
+All of the above run on every push/PR via [CircleCI](.circleci/config.yml). A GitHub Actions equivalent also ships in [`.github/workflows/ci.yml`](.github/workflows/ci.yml), set to manual (`workflow_dispatch`) trigger for now since hosted-runner billing isn't currently available on this account.
 
 ## Contributing
 
