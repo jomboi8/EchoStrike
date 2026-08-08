@@ -160,9 +160,6 @@ func TestParseSeverityInvalid(t *testing.T) {
 	}
 }
 
-// TestPriorityEncoding pins down the facility/severity packing scheme
-// (facility pre-shifted by 3 bits, OR'd with a 0-7 severity) that the rest
-// of the package's PRI values depend on.
 func TestPriorityEncoding(t *testing.T) {
 	m := NewMessage("x")
 	m.Facility = LOG_LOCAL0 // 16 << 3 = 128

@@ -6,14 +6,8 @@ import (
 	"time"
 )
 
-// Priority maps to syslog facility * 8 + severity
 type Priority int
 
-// Facility codes per RFC 3164 §4.1.1 / glibc syslog.h. Values 12-15 are
-// reserved (NTP, audit, alert, clock daemon) and deliberately skipped, so
-// these are spelled out explicitly rather than left to an auto-incrementing
-// iota — an iota sequence here previously drifted LOCAL0-LOCAL7 onto the
-// reserved range instead of the correct 16-23.
 const (
 	LOG_KERN     Priority = 0 << 3
 	LOG_USER     Priority = 1 << 3
@@ -107,8 +101,6 @@ func (m *Message) String() string {
 			p, ts, hostname, appName, procID, msgID, m.Message)
 	}
 
-	// RFC3164: <PRIVAL>TIMESTAMP HOSTNAME TAG: MSG
-	// Timestamp: Mmm dd hh:mm:ss
 	ts := m.Timestamp.Format(time.Stamp)
 	tag := m.AppName
 	if m.ProcID != "" {

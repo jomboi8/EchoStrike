@@ -7,7 +7,7 @@ import (
 )
 
 func TestWaitReturnsImmediatelyWithinBurst(t *testing.T) {
-	l := New(1000) // large burst, generous rate: shouldn't block in practice
+	l := New(1000) 
 	defer l.Stop()
 
 	ctx := context.Background()
@@ -23,9 +23,6 @@ func TestWaitReturnsImmediatelyWithinBurst(t *testing.T) {
 }
 
 func TestWaitRespectsContextCancellation(t *testing.T) {
-	// Rate of 1/s with an empty bucket means the second Wait has to queue;
-	// cancel the context immediately and confirm Wait returns promptly
-	// instead of blocking for the full interval.
 	l := New(1)
 	defer l.Stop()
 
